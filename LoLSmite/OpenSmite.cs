@@ -112,12 +112,8 @@ namespace LoLSmite
                 Console.WriteLine($"Found Smite under {((iSmiteKeyCode == 0x44) ? 'D' : 'F')} slot!");
 
             // Main loop while user is in game.
-            while (true)
+            while (!m_bFailed)
             {
-                // Looks like we've failed while reading memory, maybe process is dead already?
-                if (m_bFailed)
-                    break;
-
                 if (WinAPI.IsKeyPushedDown(88)) // VK_X
                 {
                     // Read "highlighted" object (the one under mouse) 
