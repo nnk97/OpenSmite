@@ -12,9 +12,11 @@ namespace LoLSmite
     {
         private IntPtr m_hProcHandle { get; set; }
         private int m_iProcessId { get; set; }
+        private bool m_bFailed { get; set; }
 
         public COpenSmite(int _PID)
         {
+            m_bFailed = false;
             m_iProcessId = _PID;
             m_hProcHandle = WinAPI.OpenProcess(WinAPI.ProcessAccessFlags.VirtualMemoryRead, false, _PID);
             new Thread(Logic).Start();
@@ -25,7 +27,10 @@ namespace LoLSmite
         {
             byte[] bfr = new byte[4];
             if (!WinAPI.ReadProcessMemory(m_hProcHandle, Address, bfr, 4, 0))
+            {
+                m_bFailed = true;
                 Console.WriteLine("ReadInt failed!");
+            }
             return BitConverter.ToInt32(bfr, 0);
         }
 
@@ -33,7 +38,10 @@ namespace LoLSmite
         {
             byte[] bfr = new byte[4];
             if (!WinAPI.ReadProcessMemory(m_hProcHandle, Address, bfr, 4, 0))
+            {
+                m_bFailed = true;
                 Console.WriteLine("ReadIntPtr failed!");
+            }
             return (IntPtr)BitConverter.ToUInt32(bfr, 0);
         }
 
@@ -41,7 +49,10 @@ namespace LoLSmite
         {
             byte[] bfr = new byte[4];
             if (!WinAPI.ReadProcessMemory(m_hProcHandle, Address, bfr, 4, 0))
+            {
+                m_bFailed = true;
                 Console.WriteLine("ReadFloat failed!");
+            }
             return BitConverter.ToSingle(bfr, 0);
         }
 
@@ -50,13 +61,13 @@ namespace LoLSmite
             IntPtr SpellData = ReadIntPtr(pSpell + 0xF4);
             byte[] bfr = new byte[16];
             if (!WinAPI.ReadProcessMemory(m_hProcHandle, SpellData + 0x18, bfr, 16, 0))
+            {
+                m_bFailed = true;
                 Console.WriteLine("GetSpellName failed!");
+            }
             return Encoding.UTF8.GetString(bfr);
         }
-
-        // I guess you can read that from the game, but that's easier way (lazy)
-        float[] flSmiteDamage = { 0.0f, 390f, 410f, 430f, 450f, 480f, 510f, 540f, 570f, 600f, 640f, 680f, 720f, 760f, 800f, 850f, 900f, 950f, 1000f };
-
+        
         public void Logic()
         {
             Process Proc = Process.GetProcessById(m_iProcessId);
@@ -78,6 +89,7 @@ namespace LoLSmite
             {
                 IntPtr SpellD = ReadIntPtr(LocalPlayer + 0x2F88 + 0x4 * 4);
                 IntPtr SpellF = ReadIntPtr(LocalPlayer + 0x2F88 + 0x4 * 5);
+                //Console.WriteLine($"SpellD: 0x{SpellD.ToString("X")} & SpellF: 0x{SpellF.ToString("X")}");
                 if (GetSpellName(SpellD).Contains("Smite"))
                 {
                     iSmiteKeyCode = 0x44;
@@ -102,11 +114,15 @@ namespace LoLSmite
             // Main loop while user is in game.
             while (true)
             {
+                // Looks like we've failed while reading memory, maybe process is dead already?
+                if (m_bFailed)
+                    break;
+
                 if (WinAPI.IsKeyPushedDown(88)) // VK_X
                 {
                     // Read "highlighted" object (the one under mouse) 
                     IntPtr Highlighted = ReadIntPtr(LoLBase + 0x169C3B0);
-                    if (Highlighted.Equals(IntPtr.Zero))
+                    if (Highlighted == IntPtr.Zero)
                         continue;
 
                     // Read current game time, compare to cooldown
@@ -119,12 +135,15 @@ namespace LoLSmite
                     if (flGameTime <= flCooldownEnd)
                         continue;
 
-                    // Check our level to get the Smite damage
-                    int iPlayerLevel = ReadInt(LocalPlayer + 0x3C5C);
+                    // Do we have the Smite? (cooldowns seems to be confusing here, so is spellstate flag... idk)
+                    int iSmiteStacks = ReadInt(SpellPtr + 0x28);
+                    if (iSmiteStacks == 0)
+                        continue;
 
                     // Check target health to see if our Smite can kill it
                     float flTargetHealth = ReadFloat(Highlighted + 0x650);
-                    if (flTargetHealth > flSmiteDamage[iPlayerLevel])
+                    float flSmiteDamage = ReadFloat(SpellPtr + 0x58);
+                    if (flTargetHealth > flSmiteDamage)
                         continue;
 
                     // Send key event to active window (Let's assume that it's League)
@@ -132,7 +151,7 @@ namespace LoLSmite
                     Thread.Sleep(rng.Next(5, 125));
                     WinAPI.keybd_event(iSmiteKeyCode, (byte)WinAPI.MapVirtualKey(iSmiteKeyCode, 0), WinAPI.KEYEVENTF_KEYUP, UIntPtr.Zero);
 
-                    Console.WriteLine($"Casted Smite (CD: {flGameTime - flCooldownEnd})");
+                    Console.WriteLine("Casting Smite!");
 
                     Thread.Sleep(250);
                 }
