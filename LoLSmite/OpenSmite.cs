@@ -23,42 +23,24 @@ namespace LoLSmite
         }
 
         // Helperino
-        int ReadInt(IntPtr Address)
+        T Read<T>(IntPtr Address)
         {
-            byte[] bfr = new byte[4];
-            if (!WinAPI.ReadProcessMemory(m_hProcHandle, Address, bfr, 4, 0))
+            int Size = Marshal.SizeOf(typeof(T));
+            byte[] Bfr = new byte[Size];
+            if (!WinAPI.ReadProcessMemory(m_hProcHandle, Address, Bfr, Size, 0))
             {
                 m_bFailed = true;
-                Console.WriteLine("ReadInt failed!");
+                Console.WriteLine("Read memory failed!");
             }
-            return BitConverter.ToInt32(bfr, 0);
-        }
-
-        IntPtr ReadIntPtr(IntPtr Address)
-        {
-            byte[] bfr = new byte[4];
-            if (!WinAPI.ReadProcessMemory(m_hProcHandle, Address, bfr, 4, 0))
-            {
-                m_bFailed = true;
-                Console.WriteLine("ReadIntPtr failed!");
-            }
-            return (IntPtr)BitConverter.ToUInt32(bfr, 0);
-        }
-
-        float ReadFloat(IntPtr Address)
-        {
-            byte[] bfr = new byte[4];
-            if (!WinAPI.ReadProcessMemory(m_hProcHandle, Address, bfr, 4, 0))
-            {
-                m_bFailed = true;
-                Console.WriteLine("ReadFloat failed!");
-            }
-            return BitConverter.ToSingle(bfr, 0);
+            GCHandle handle = GCHandle.Alloc(Bfr, GCHandleType.Pinned);
+            T Temp = (T)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(T));
+            handle.Free();
+            return Temp;
         }
 
         string GetSpellName(IntPtr pSpell)
         {
-            IntPtr SpellData = ReadIntPtr(pSpell + 0xF4);
+            IntPtr SpellData = Read<IntPtr>(pSpell + 0xF4);
             byte[] bfr = new byte[16];
             if (!WinAPI.ReadProcessMemory(m_hProcHandle, SpellData + 0x18, bfr, 16, 0))
             {
@@ -75,7 +57,7 @@ namespace LoLSmite
             Random rng = new Random();
 
             // If game is currently loading, then wait for a while.
-            while (ReadInt(LoLBase + 0x16A0220) < 2)
+            while (Read<int>(LoLBase + 0x16A0220) < 2)
                 Thread.Sleep(1000);
 
             // Grab some data about our summoner spells
@@ -84,11 +66,11 @@ namespace LoLSmite
                 SlotID: D = 4, F = 5
                 0x1698B84 + 0x2F88 + 0x4 * iSlot = SpellAddress  */
             byte iSmiteKeyCode = 0x0;
-            IntPtr LocalPlayer = ReadIntPtr(LoLBase + 0x1698B84);
+            IntPtr LocalPlayer = Read<IntPtr>(LoLBase + 0x1698B84);
             IntPtr SpellPtr = IntPtr.Zero;
             {
-                IntPtr SpellD = ReadIntPtr(LocalPlayer + 0x2F88 + 0x4 * 4);
-                IntPtr SpellF = ReadIntPtr(LocalPlayer + 0x2F88 + 0x4 * 5);
+                IntPtr SpellD = Read<IntPtr>(LocalPlayer + 0x2F88 + 0x4 * 4);
+                IntPtr SpellF = Read<IntPtr>(LocalPlayer + 0x2F88 + 0x4 * 5);
                 //Console.WriteLine($"SpellD: 0x{SpellD.ToString("X")} & SpellF: 0x{SpellF.ToString("X")}");
                 if (GetSpellName(SpellD).Contains("Smite"))
                 {
@@ -114,37 +96,36 @@ namespace LoLSmite
             // Main loop while user is in game.
             while (!m_bFailed)
             {
-                if (WinAPI.IsKeyPushedDown(88)) // VK_X
+                if (WinAPI.IsKeyPushedDown(iSmiteKeyCode))
                 {
                     // Read "highlighted" object (the one under mouse) 
-                    IntPtr Highlighted = ReadIntPtr(LoLBase + 0x169C3B0);
+                    IntPtr Highlighted = Read<IntPtr>(LoLBase + 0x169C3B0);
                     if (Highlighted == IntPtr.Zero)
                         continue;
 
                     // Read current game time, compare to cooldown
-                    float flGameTime = ReadFloat(LoLBase + 0x169BE3C);
+                    float flGameTime = Read<float>(LoLBase + 0x169BE3C);
 
                     // Read current spell cooldown
-                    float flCooldownEnd = ReadFloat(SpellPtr + 0x18);
+                    float flCooldownEnd = Read<float>(SpellPtr + 0x18);
 
                     // So, can we cast the spell?
                     if (flGameTime <= flCooldownEnd)
                         continue;
 
                     // Do we have the Smite? (cooldowns seems to be confusing here, so is spellstate flag... idk)
-                    int iSmiteStacks = ReadInt(SpellPtr + 0x28);
+                    int iSmiteStacks = Read<int>(SpellPtr + 0x28);
                     if (iSmiteStacks == 0)
                         continue;
 
                     // Check target health to see if our Smite can kill it
-                    float flTargetHealth = ReadFloat(Highlighted + 0x650);
-                    float flSmiteDamage = ReadFloat(SpellPtr + 0x58);
+                    float flTargetHealth = Read<float>(Highlighted + 0x650);
+                    float flSmiteDamage = Read<float>(SpellPtr + 0x58);
                     if (flTargetHealth > flSmiteDamage)
                         continue;
 
                     // Send key event to active window (Let's assume that it's League)
-                    WinAPI.keybd_event(iSmiteKeyCode, (byte)WinAPI.MapVirtualKey(iSmiteKeyCode, 0), WinAPI.KEYEVENTF_KEYDOWN, UIntPtr.Zero);
-                    Thread.Sleep(rng.Next(5, 125));
+                    //Thread.Sleep(rng.Next(5, 125));
                     WinAPI.keybd_event(iSmiteKeyCode, (byte)WinAPI.MapVirtualKey(iSmiteKeyCode, 0), WinAPI.KEYEVENTF_KEYUP, UIntPtr.Zero);
 
                     Console.WriteLine("Casting Smite!");
