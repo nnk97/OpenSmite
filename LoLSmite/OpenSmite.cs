@@ -57,16 +57,16 @@ namespace LoLSmite
             Random rng = new Random();
 
             // If game is currently loading, then wait for a while.
-            while (Read<int>(LoLBase + 0x16A0220) < 2)
+            while (Read<int>(LoLBase + 0x16A5CCC) < 2)  // Game state
                 Thread.Sleep(1000);
 
             // Grab some data about our summoner spells
             /*  VKeyCodes: 0x44 = D, 0x46 = F
-                0x1698B84 = LocalPlayer
+                0x1698B84 = LocalPlayer // NOTE: Game version 7.12
                 SlotID: D = 4, F = 5
                 0x1698B84 + 0x2F88 + 0x4 * iSlot = SpellAddress  */
             byte iSmiteKeyCode = 0x0;
-            IntPtr LocalPlayer = Read<IntPtr>(LoLBase + 0x1698B84);
+            IntPtr LocalPlayer = Read<IntPtr>(LoLBase + 0x16A6AB0);
             IntPtr SpellPtr = IntPtr.Zero;
             {
                 IntPtr SpellD = Read<IntPtr>(LocalPlayer + 0x2F88 + 0x4 * 4);
@@ -99,12 +99,12 @@ namespace LoLSmite
                 if (WinAPI.IsKeyPushedDown(iSmiteKeyCode))
                 {
                     // Read "highlighted" object (the one under mouse) 
-                    IntPtr Highlighted = Read<IntPtr>(LoLBase + 0x169C3B0);
+                    IntPtr Highlighted = Read<IntPtr>(LoLBase + 0x16A36FC);
                     if (Highlighted == IntPtr.Zero)
                         continue;
 
                     // Read current game time, compare to cooldown
-                    float flGameTime = Read<float>(LoLBase + 0x169BE3C);
+                    float flGameTime = Read<float>(LoLBase + 0x16A452C);
 
                     // Read current spell cooldown
                     float flCooldownEnd = Read<float>(SpellPtr + 0x18);

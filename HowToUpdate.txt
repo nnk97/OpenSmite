@@ -1,0 +1,47 @@
+LocalPlayer address:
+	7.13 = 0x16A6AB0
+		Signature: FF 76 44 FF 52 38
+		.text:0015FFCB FF 76 44                                                        push    dword ptr [esi+44h]
+		.text:0015FFCE FF 52 38                                                        call    dword ptr [edx+38h]
+		.text:0015FFD1 A1 84 8B 69 01                                                  mov     eax, LocalPlayer
+		.text:0015FFD6 8B 4E 40                                                        mov     ecx, [esi+40h]
+		If sig is broken look below:
+		
+Spell array offset:
+	7.13 = 0x2F88
+		Find string: "ALE-C00960B2"
+		First xref, decompile, look for smth like:
+		    v3 = LocalPlayer;
+			if ( v1 < 0 || v1 >= 65 )
+			  sub_43E850((int)"ALE-C00960B2", (int)pNodeName, 0, (int)pNodeName, (int)pNodeName, v6);
+			result = (unsigned int)v1 > 0x40 ? *(_DWORD *)(v3 + 0x2F88) : *(_DWORD *)(v2 + v3 + 0x2A28);
+		You can clearly see v3 + Offset there.
+		
+Highlighted target:
+	7.13 = 0x16A36FC
+		Signature: A3 ? ? ? ? C7 05 ? ? ? ? 00 00 00 00 C7 05 ? ? ? ? 00 00 00 00 E8 ? ? ? ? 83 C4 04 C7 05
+		.text:00199836 68 C0 55 F9 00                                                  push    offset sub_F955C0
+		.text:0019983B A3 D0 AC 69 01                                                  mov     dword_169ACD0, eax
+		.text:00199840 C7 05 AC C3 69 01 00 00 00 00                                   mov     dword_169C3AC, 0
+		.text:0019984A C7 05 B0 C3 69 01 00 00 00 00                                   mov     HighlightTarget, 0
+		.text:00199854 E8 1E D4 D4 00                                                  call    sub_EE6C77
+		.text:00199859 83 C4 04                                                        add     esp, 4
+		.text:0019985C
+		.text:0019985C                                                 loc_19985C:                             ; CODE XREF: ...
+		.text:0019985C C7 05 B0 C3 69 01 00 00 00 00                                   mov     HighlightTarget, 0
+		
+GameState:
+	7.13 = 0x16A5CCC
+		Signature: 83 3D ? ? ? ? 02 75 1F
+		.text:001E57D3 74 28                                   jz      short loc_1E57FD
+		.text:001E57D5 83 3D CC 5C 6A 01 02                    cmp     GameState, 2
+		.text:001E57DC 75 1F                                   jnz     short loc_1E57FD
+		
+GameTime:
+	7.13 = 0x16A452C
+		Signature: C7 05 ? ? ? ? FF FF FF FF C7 05 ? ? ? ? 00 00 80 BF C7 05 ? ? ? ? 00 00 00 00
+		.text:002C1D89 C7 05 28 45 6A 01 FF FF+                mov     dword_16A4528, 0FFFFFFFFh
+		.text:002C1D93 C7 05 2C 45 6A 01 00 00+                mov     GameTime, 0BF800000h
+		.text:002C1D9D C7 05 30 45 6A 01 00 00+                mov     dword_16A4530, 0
+		
+Rest is simple to find using ReClass, good luck!
