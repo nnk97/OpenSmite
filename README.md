@@ -1,6 +1,6 @@
 # OpenSmite
 Very simple external cheat for **League of Legends**  
-Currently it's updated for patch **7.12**, it will not work on different game versions. (Addresses will change)  
+Currently it's updated for patch **7.13**, it will not work on different game versions. (Addresses will change)  
 
 ## Remarks
 * I did not bother with LoL AntiCheat, use at your own risk.  
